@@ -19,7 +19,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".Dashboard" />
+        <activity android:name=".Dashboard"
+            android:launchMode="singleInstance"
+            android:theme="@style/AppTheme.NoActionbar"/>
 
         <receiver android:name=".NotificationStarterBoot" >
             <intent-filter>

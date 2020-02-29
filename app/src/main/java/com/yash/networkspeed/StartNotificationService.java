@@ -1,6 +1,7 @@
 package com.yash.networkspeed;
 
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -30,6 +31,7 @@ import androidx.core.content.ContextCompat;
 import com.amulyakhare.textdrawable.TextDrawable;
 
 import java.text.DecimalFormat;
+import java.util.Calendar;
 
 public class StartNotificationService extends Service {
     public static final String CHANNEL_ID="ch1";
@@ -43,6 +45,7 @@ public class StartNotificationService extends Service {
     SharedPreferences preferences;
     boolean running=false;
     int mode=1;
+    DateManipulate dateManipulate;
     @Override
     public IBinder onBind(Intent intent) {
         return iBinder;
@@ -63,6 +66,8 @@ public class StartNotificationService extends Service {
         super.onCreate();
         mHandler=new Handler();
         databaseRoom=new DatabaseRoom(this);
+        dateManipulate=new DateManipulate();
+
     }
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -136,12 +141,16 @@ public class StartNotificationService extends Service {
 //        mycontentView.setTextViewText(R.id.n_title, "Notification Title");
 //        mycontentView.setTextViewText(R.id.n_body, "Notification Body");
 
+        Intent intent=new Intent(this,Dashboard.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        PendingIntent pendingIntent=PendingIntent.getActivity(getApplicationContext(),0,intent,PendingIntent.FLAG_UPDATE_CURRENT);
 
         //creating notification
         notification=new NotificationCompat.Builder(this,CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notifications_white_24dp)
                 //.setContent(mycontentView)
                 .setOngoing(true)
+                .setContentIntent(pendingIntent)
                 .setPriority(Notification.PRIORITY_HIGH)
                 .setColor(ContextCompat.getColor(StartNotificationService.this, android.R.color.holo_orange_light));
 
@@ -165,7 +174,7 @@ public class StartNotificationService extends Service {
             @Override
             public void run() {
                 // complete calculations
-
+                Log.d("msg","st----------------------------------------------------------------");
                 //Current Values
                 //if (mode != 0) {
                     double current_mob_t_data = TrafficStats.getMobileTxBytes();//Cellular data
@@ -177,91 +186,163 @@ public class StartNotificationService extends Service {
 
                     double t_data = 0.0, r_data = 0.0;
 
-                    if(current_mob_t_data<t_old_mob_data)
+                   /* if(current_mob_t_data<t_old_mob_data)
                         t_old_mob_data = 0.0;
 
                     if(current_mob_r_data<r_old_mob_data)
-                        r_old_mob_data=0.0;
+                        r_old_mob_data=0.0;*/
+                //Log.d("msg","  ii "+current_mob_r_data+"  /  "+r_old_mob_data+"change : "+(current_mob_r_data>r_old_mob_data));
+                   if(((current_mob_r_data!=0.0&&current_mob_t_data!=0.0)&&(current_mob_r_data>=r_old_mob_data&&current_mob_t_data>=t_old_mob_data))||((current_mob_r_data==0.0&&current_mob_t_data==0.0)&&(current_total_t_data>=t_old_total_data&&current_total_r_data>=r_old_total_data)) ){
+                       if (mode == 1) {
 
-                    else if (mode == 1) {
+                           //Mobile Data Calculations
+                           Log.d("msg", "mode 1");
+                           if (current_mob_t_data != 0.0)
+                               t_data = current_mob_t_data - t_old_mob_data;
+                           if (current_mob_r_data != 0.0)
+                               r_data = current_mob_r_data - r_old_mob_data;
+                       } else if (mode == 2) {
 
-                        //Mobile Data Calculations
-                        //Log.d("msg","mode 1");
-                        t_data = current_mob_t_data - t_old_mob_data;
-                        r_data = current_mob_r_data - r_old_mob_data;
-                    } else if (mode == 2) {
+                           //Wifi data Calculations
+                           //Log.d("msg","mode 2");
+                           if (current_mob_t_data != 0.0)
+                               t_data = (current_total_t_data - t_old_total_data) - (current_mob_t_data - t_old_mob_data);
+                           else t_data = (current_total_t_data - t_old_total_data);
+                           if (current_mob_r_data != 0.0)
+                               r_data = (current_total_r_data - r_old_total_data) - (current_mob_r_data - r_old_mob_data);
+                           else r_data = (current_total_r_data - r_old_total_data);
+                           //Log.d("msg","R current T:"+current_total_r_data+" old T"+r_old_total_data+" R current M:"+current_mob_r_data+" old M:"+r_old_mob_data+"///"+r_data);
 
-                        //Wifi data Calculations
-                        //Log.d("msg","mode 2");
-                        //Log.d("msg","R current T:"+current_total_r_data+" old T"+r_old_total_data+" R current M:"+current_mob_r_data+" old M:"+r_old_mob_data);
-                        t_data = (current_total_t_data-t_old_total_data)-(current_mob_t_data-t_old_mob_data) ;
-                        r_data =  (current_total_r_data-r_old_total_data)-(current_mob_r_data-r_old_mob_data) ;
-                    }
+                       }
 
-                    String t_suffix = "B/s", r_suffix = "B/s";
-                    old_r_data = preferences.getLong("ref_recv_data", 0);//getting from storage
+                       String t_suffix = "B/s", r_suffix = "B/s";
+                       old_r_data = preferences.getLong("ref_recv_data", 0);//getting from storage
 
-                    DataItem recv = new DataItem(r_data, r_suffix);//Received Data
-                    recv.convertToHighestSuffix();
-                    DataItem trns = new DataItem(t_data, t_suffix);//Transmitted Data
-                    trns.convertToHighestSuffix();
-                    //storing usage data
-                    double todays_usage = 0.0;
-                    String dataUtype = "";
-
-                    if (mode == 1) {
-                        todays_usage = preferences.getFloat("todays_usage_mob", 0.0f) + (r_data + t_data);
-                        //Log.d("msg", "Mobile : " + todays_usage+" R: "+r_data+" S: "+t_data);
-                        SharedPreferences.Editor editor = preferences.edit();
-                        editor.putFloat("todays_usage_mob", (float) todays_usage);
-                        editor.apply();
-                        dataUtype = "Mobile Data";
-                    }
-                    if (mode == 2) {
-                        todays_usage = preferences.getFloat("todays_usage_wifi", 0.0f) + (r_data + t_data);
-                        //Log.d("msg", "Wifi : " + todays_usage+" R: "+r_data+" S: "+t_data);
-                        SharedPreferences.Editor editor = preferences.edit();
-                        editor.putFloat("todays_usage_wifi", (float) todays_usage);
-                        editor.apply();
-                        dataUtype = "Wifi";
-                    }
+                       DataItem recv = new DataItem(r_data, r_suffix);//Received Data
+                       recv.convertToHighestSuffix();
+                       DataItem trns = new DataItem(t_data, t_suffix);//Transmitted Data
+                       trns.convertToHighestSuffix();
 
 
-                    DataItem trecv = new DataItem(todays_usage);//Total Received Data
-                    trecv.convertToHighestSuffix();
+                       //storing usage data
+                       double todays_usage = 0.0;
+                       String dataUtype = "";
+                       //Daily Data Usage
+                       dateManipulate.refresh();
+                       String todays_date = "D01011990";
+
+                       if (mode == 1)
+                           todays_date = dateManipulate.dateToString() + "_mob";
+                       else if (mode == 2)
+                           todays_date = dateManipulate.dateToString() + "_wifi";
+
+                       double todays_use = preferences.getFloat(todays_date, -1.0f);
+
+                       Log.d("msg", "todays use: " + todays_use);
+                       if (todays_use == -1.0) {
+//                        Log.d("msg","one time call todays usage");
+                           SharedPreferences.Editor editor = preferences.edit();
+                           if (mode == 1) {
+                               todays_usage = preferences.getFloat("todays_usage_mob", 0.0f);
+                               todays_usage -= todays_usage;
+                               //Log.d("msg","todays usage mob : "+todays_usage);
+                               editor.putFloat("todays_usage_mob", (float) todays_usage);
+                           } else if (mode == 2) {
+                               todays_usage = preferences.getFloat("todays_usage_wifi", 0.0f);
+                               todays_usage -= todays_usage;
+                               //Log.d("msg","todays usage wifi : "+todays_usage);
+                               editor.putFloat("todays_usage_wifi", (float) todays_usage);
+                           }
+
+                           editor.apply();
+
+                       } else {
+                           if (mode == 1) {
+                               todays_usage = preferences.getFloat(todays_date, 0.0f);
+                               SharedPreferences.Editor editor = preferences.edit();
+                               editor.putFloat("todays_usage_mob", (float) todays_usage);
+                               editor.apply();
+                           } else if (mode == 2) {
+                               todays_usage = preferences.getFloat(todays_date, 0.0f);
+                               SharedPreferences.Editor editor = preferences.edit();
+                               editor.putFloat("todays_usage_wifi", (float) todays_usage);
+                               editor.apply();
+                           }
+                       }
+
+
+                       //
+
+                       if (mode == 1) {
+                           todays_usage = preferences.getFloat("todays_usage_mob", 0.0f) + (r_data + t_data);
+                           //Log.d("msg", "Mobile : " + todays_usage+" R: "+r_data+" S: "+t_data);
+                           SharedPreferences.Editor editor = preferences.edit();
+                           editor.putFloat("todays_usage_mob", (float) todays_usage);
+                           editor.apply();
+                           dataUtype = "Mobile Data";
+                       }
+                       if (mode == 2) {
+                           todays_usage = preferences.getFloat("todays_usage_wifi", 0.0f) + (r_data + t_data);
+                           //Log.d("msg", "Wifi : " + todays_usage+" R: "+r_data+" S: "+t_data);
+                           SharedPreferences.Editor editor = preferences.edit();
+                           editor.putFloat("todays_usage_wifi", (float) todays_usage);
+                           editor.apply();
+                           dataUtype = "Wifi";
+                       }
+
+                       if (mode != 0) {
+                           SharedPreferences.Editor editor = preferences.edit();
+                           editor.putFloat(todays_date, (float) todays_usage);
+                           editor.apply();
+                       }
+
+                       //Log.d("msg","todays date: "+todays_date+" use : "+todays_usage);
+
+                       DataItem trecv = new DataItem(todays_usage);//Total Received Data
+                       trecv.convertToHighestSuffix();
 
 //                TextDrawable drawable = TextDrawable.builder()
 //                        .buildRect(df.format(recv.getData()), Color.TRANSPARENT);
 
-                    //setting notification icon and data
-                    int smallIcon = new StartNotificationService.ResourceMap(recv.getData(), recv.getSuffix()).getResourceId();//Extracting icon from resource
-                    //Log.d("msg"," : "+smallIcon+" for data: "+recv.getData());
-                    // mycontentView.setImageViewResource(R.id.image, smallIcon);
-                    // mycontentView.setTextViewText(R.id.n_title, "Data Received: "+df.format(trecv.getData())+trecv.getType());
-                    // mycontentView.setTextViewText(R.id.n_body, "Download: "+df.format(recv.getData())+""+recv.getSuffix()+"  Upload: "+df.format(trns.getData())+""+trns.getSuffix());
+                       //setting notification icon and data
+                       int smallIcon = new StartNotificationService.ResourceMap(recv.getData(), recv.getSuffix()).getResourceId();//Extracting icon from resource
+                       //Log.d("msg"," : "+smallIcon+" for data: "+recv.getData());
+                       // mycontentView.setImageViewResource(R.id.image, smallIcon);
+                       // mycontentView.setTextViewText(R.id.n_title, "Data Received: "+df.format(trecv.getData())+trecv.getType());
+                       // mycontentView.setTextViewText(R.id.n_body, "Download: "+df.format(recv.getData())+""+recv.getSuffix()+"  Upload: "+df.format(trns.getData())+""+trns.getSuffix());
 
-                    notification.setSmallIcon(smallIcon)
-                            .setContentTitle(dataUtype + " Used: " + df.format(trecv.getData()) + trecv.getType())
-                            .setContentText("Download: " + df.format(recv.getData()) + "" + recv.getSuffix() + "  Upload: " + df.format(trns.getData()) + "" + trns.getSuffix());
+                       notification.setSmallIcon(smallIcon)
+                               .setContentText(dataUtype + " Used: " + df.format(trecv.getData()) + trecv.getType() + " Total: " + df.format(new DataItem(current_mob_r_data).convert().getData()) + new DataItem(current_mob_r_data).convert().getType())
+                               .setContentTitle("D: " + df.format(recv.getData()) + "" + recv.getSuffix() + "  U: " + df.format(trns.getData()) + "" + trns.getSuffix());
 
-                    //Assigning current data to old data;
-                    t_old_mob_data = current_mob_t_data;//Cellular
-                    r_old_mob_data = current_mob_r_data;
-                    t_old_total_data = current_total_t_data;//Total
-                    r_old_total_data = current_total_r_data;
+                       //Assigning current data to old data;
+                       if (current_mob_t_data != 0.0)
+                           t_old_mob_data = current_mob_t_data;//Cellular
+                       if (current_mob_r_data != 0.0)
+                           r_old_mob_data = current_mob_r_data;
+
+
+                       t_old_total_data = current_total_t_data;//Total
+                       r_old_total_data = current_total_r_data;
 //                    t_old_wifi_data = current_wifi_t_data;//Wifi
 //                    r_old_wifi_data = current_wifi_r_data;
 
-                    if(mode!=0){
-                        //Display Notification With Manager
-                        NotificationManagerCompat manager = NotificationManagerCompat.from(StartNotificationService.this);
-                        manager.notify(1, notification.build());
-                    }
+                       if (mode != 0) {
+                           //Display Notification With Manager
+                           NotificationManagerCompat manager = NotificationManagerCompat.from(StartNotificationService.this);
+                           manager.notify(1, notification.build());
+                       }
 
+
+                   }
                     if (!mStopHandler) {
                         mHandler.postDelayed(this, 1000); //runs every second
                     } else running = false;
-                }
+
+
+                Log.d("msg","end----------------------------------------------------------------");
+
+            }
 
         };
 
@@ -351,57 +432,3 @@ public class StartNotificationService extends Service {
 
 }
 
-
-class DataItem{
-    private double data;
-    private String suffix;
-    private String type;
-    DataItem(){
-        data=0.0;
-        suffix="B/s";
-        type="B";
-    }
-    DataItem(double data)
-    {
-        this.data=data;
-        this.suffix="B/s";
-        this.type="B";
-    }
-    DataItem(double data,String suffix){
-        this.data=data;
-        this.suffix=suffix;
-        this.type="B";
-    }
-
-    void convertToHighestSuffix(){
-        suffix="B/s";
-        type="B";
-        if(data>1024){
-            data/=1024;
-            suffix="KB/s";
-            type="KB";
-            if (data>1024){
-                data/=1024;
-                suffix="MB/s";
-                type="MB";
-                if(data>1024){
-                    data/=1024;
-                    suffix="GB/s";
-                    type="GB";
-                }
-            }
-        }
-    }
-
-    double getData(){
-        return this.data;
-    }
-    String getSuffix(){
-        return this.suffix;
-    }
-    String getType(){
-        return this.type;
-    }
-
-
-}
