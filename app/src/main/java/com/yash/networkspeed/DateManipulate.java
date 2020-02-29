@@ -25,7 +25,7 @@ public class DateManipulate {
 
         DecimalFormat df=new DecimalFormat("00");
         String var="D"+df.format(day)+""+df.format(month)+""+year;
-        Log.d("msg","Date: "+df.format(day)+"-"+df.format(month)+"-"+year+"/"+var);
+//        Log.d("msg","Date: "+df.format(day)+"-"+df.format(month)+"-"+year+"/"+var);
         return var;
     }
     String getDisplayDate(int index){
@@ -43,7 +43,7 @@ public class DateManipulate {
         this.day=c.get(Calendar.DAY_OF_MONTH);
         this.month=c.get(Calendar.MONTH)+1;
         this.year=c.get(Calendar.YEAR);
-        Log.d("msg1","-"+index+"days:  :"+c.get(Calendar.DAY_OF_MONTH)+"-"+(c.get(Calendar.MONTH)+1)+"-"+c.get(Calendar.YEAR));
+//        Log.d("msg1","-"+index+"days:  :"+c.get(Calendar.DAY_OF_MONTH)+"-"+(c.get(Calendar.MONTH)+1)+"-"+c.get(Calendar.YEAR));
         return dateToString();
     }
     String getMonth(int month){

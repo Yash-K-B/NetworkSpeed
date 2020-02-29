@@ -6,32 +6,25 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Color;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
-import android.net.NetworkInfo;
-import android.net.NetworkRequest;
 import android.net.TrafficStats;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
-import android.view.View;
 import android.widget.RemoteViews;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
-import com.amulyakhare.textdrawable.TextDrawable;
-
 import java.text.DecimalFormat;
-import java.util.Calendar;
+import java.util.List;
+
 
 public class StartNotificationService extends Service {
     public static final String CHANNEL_ID="ch1";
@@ -46,6 +39,7 @@ public class StartNotificationService extends Service {
     boolean running=false;
     int mode=1;
     DateManipulate dateManipulate;
+    Dashboard dashboard=null;
     @Override
     public IBinder onBind(Intent intent) {
         return iBinder;
@@ -174,7 +168,7 @@ public class StartNotificationService extends Service {
             @Override
             public void run() {
                 // complete calculations
-                Log.d("msg","st----------------------------------------------------------------");
+//                Log.d("msg","st----------------------------------------------------------------");
                 //Current Values
                 //if (mode != 0) {
                     double current_mob_t_data = TrafficStats.getMobileTxBytes();//Cellular data
@@ -191,7 +185,7 @@ public class StartNotificationService extends Service {
 
                     if(current_mob_r_data<r_old_mob_data)
                         r_old_mob_data=0.0;*/
-                //Log.d("msg","  ii "+current_mob_r_data+"  /  "+r_old_mob_data+"change : "+(current_mob_r_data>r_old_mob_data));
+//                Log.d("msg","  ii "+current_mob_r_data+"  /  "+r_old_mob_data+"change : "+(current_mob_r_data>r_old_mob_data));
                    if(((current_mob_r_data!=0.0&&current_mob_t_data!=0.0)&&(current_mob_r_data>=r_old_mob_data&&current_mob_t_data>=t_old_mob_data))||((current_mob_r_data==0.0&&current_mob_t_data==0.0)&&(current_total_t_data>=t_old_total_data&&current_total_r_data>=r_old_total_data)) ){
                        if (mode == 1) {
 
@@ -204,7 +198,7 @@ public class StartNotificationService extends Service {
                        } else if (mode == 2) {
 
                            //Wifi data Calculations
-                           //Log.d("msg","mode 2");
+//                           Log.d("msg","mode 2");
                            if (current_mob_t_data != 0.0)
                                t_data = (current_total_t_data - t_old_total_data) - (current_mob_t_data - t_old_mob_data);
                            else t_data = (current_total_t_data - t_old_total_data);
@@ -238,7 +232,7 @@ public class StartNotificationService extends Service {
 
                        double todays_use = preferences.getFloat(todays_date, -1.0f);
 
-                       Log.d("msg", "todays use: " + todays_use);
+//                       Log.d("msg", "todays use: " + todays_use);
                        if (todays_use == -1.0) {
 //                        Log.d("msg","one time call todays usage");
                            SharedPreferences.Editor editor = preferences.edit();
@@ -312,7 +306,7 @@ public class StartNotificationService extends Service {
                        // mycontentView.setTextViewText(R.id.n_body, "Download: "+df.format(recv.getData())+""+recv.getSuffix()+"  Upload: "+df.format(trns.getData())+""+trns.getSuffix());
 
                        notification.setSmallIcon(smallIcon)
-                               .setContentText(dataUtype + " Used: " + df.format(trecv.getData()) + trecv.getType() + " Total: " + df.format(new DataItem(current_mob_r_data).convert().getData()) + new DataItem(current_mob_r_data).convert().getType())
+                               .setContentText(dataUtype + " Used: " + df.format(trecv.getData()) + trecv.getType() )//+ " Total: " + df.format(new DataItem(current_mob_r_data).convert().getData()) + new DataItem(current_mob_r_data).convert().getType())
                                .setContentTitle("D: " + df.format(recv.getData()) + "" + recv.getSuffix() + "  U: " + df.format(trns.getData()) + "" + trns.getSuffix());
 
                        //Assigning current data to old data;
@@ -340,7 +334,7 @@ public class StartNotificationService extends Service {
                     } else running = false;
 
 
-                Log.d("msg","end----------------------------------------------------------------");
+//                Log.d("msg","end----------------------------------------------------------------");
 
             }
 
@@ -351,6 +345,16 @@ public class StartNotificationService extends Service {
             running=true;
             mHandler.post(runnable);
         }
+
+    }
+
+    //Update Dialog data
+    void updateDialogUiData(Dashboard d)
+    {
+
+
+//        dashboard=d;
+//        thread.start();
 
     }
 

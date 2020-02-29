@@ -2,16 +2,16 @@ package com.yash.networkspeed;
 
 
 import android.app.ActivityManager;
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ComponentName;
+import android.content.DialogInterface;
 import android.content.Intent;
 
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
 import android.net.TrafficStats;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,16 +34,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 
 public class Dashboard extends AppCompatActivity {
     public static final String CHANNEL_ID="ch1";
     boolean mStopHandler = false;
-    NotificationCompat.Builder notification;
     Handler mHandler;
-    double t_old_data,r_old_data,old_r_data=0.0;
-    RemoteViews mycontentView;
     StartNotificationService startNotificationService;
     boolean isBound=false;
     TextView uploadData,downloadData,disp_date;
@@ -51,19 +51,43 @@ public class Dashboard extends AppCompatActivity {
     DecimalFormat df;
     RecyclerView history;
     List<UsageHistoryItem> items=null;
+    AlertDialog dialog;
+    Intent service;
+    boolean flag_service_bound=false;
+    List<ApplicationInfo> packages;
+    Map<String,String> appname;
+    boolean dialog_dismiss=true;
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d("msg","onCreate---------------------------------------------->");
+        //Creating Service And Binding
+        service=new Intent(this,StartNotificationService.class);
+        startService(service);
+        bindService(service,NotificationServiceConnection,BIND_AUTO_CREATE);
+        flag_service_bound=true;
         setContentView(R.layout.dashboard);
         mHandler=new Handler();
         Toolbar toolbar=findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayShowTitleEnabled(false);
+        Objects.requireNonNull(getSupportActionBar()).setDisplayShowTitleEnabled(false);
         updateUI();
-
 
     }
 
+
+    void getAppNameFromPackage(){
+        final PackageManager pm = getPackageManager();
+        packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+        appname=new HashMap<>();
+        for (ApplicationInfo packageInfo : packages)
+        {
+            appname.put(packageInfo.packageName,packageInfo.loadLabel(pm).toString());
+        }
+
+    }
+
+    //Update Activity Views
     void updateUI(){
         DateManipulate dateManipulate=new DateManipulate();
         uploadData=findViewById(R.id.upload_data);
@@ -82,12 +106,6 @@ public class Dashboard extends AppCompatActivity {
         s=df.format(dataItem.getData())+" "+dataItem.getType();
         downloadData.setText(s);
         disp_date.setText(dateManipulate.getDisplayDate(0));
-//        disp=findViewById(R.id.display);
-//        String ss="";
-//        ss+="D05022020_wifi :"+df.format(new DataItem(preferences.getFloat("D05022020_wifi",0.0f)).convert().getData())+new DataItem(preferences.getFloat("D05022020_wifi",0.0f)).convert().getType();
-//        ss+="\nD06022020_wifi: "+df.format(new DataItem(preferences.getFloat("D06022020_wifi",0.0f)).convert().getData())+new DataItem(preferences.getFloat("D06022020_wifi",0.0f)).convert().getType();
-//        ss+="\nD07022020_wifi: "+df.format(new DataItem(preferences.getFloat("D07022020_wifi",0.0f)).convert().getData())+new DataItem(preferences.getFloat("D07022020_wifi",0.0f)).convert().getType();
-//        disp.setText(ss);
         items=new ArrayList<UsageHistoryItem>();
         for(int i=1;i<=20;i++){
             String mob_date,wifi_date;
@@ -114,35 +132,92 @@ public class Dashboard extends AppCompatActivity {
     }
 
 
-    public void showNotification(View v){
-        final PackageManager pm = getPackageManager();
-        //get a list of installed apps.
-        List<ApplicationInfo> packages = pm.getInstalledApplications(PackageManager.GET_META_DATA);
-        int UID = 0;
-        //loop through the list of installed packages and see if the selected
-        //app is in the list
-        for (ApplicationInfo packageInfo : packages)
-        {
-            if(packageInfo.packageName.equals("com.android.chrome"))
+
+
+    //Thread
+    Thread thread=new Thread(new Runnable() {
+        @Override
+        public void run() {
+            String s="";
+            DecimalFormat df=new DecimalFormat("0.0");
+            int UID = 0;
+            for (ApplicationInfo packageInfo : packages)
             {
-                //get the UID for the selected app
-                UID = packageInfo.uid;
+                if(packageInfo.packageName.equals("com.kapp.youtube.final"))
+                {
+                    //get the UID for the selected app
+                    UID = packageInfo.uid;
+                    long rx = TrafficStats.getUidRxBytes(UID);
+                    long tx = TrafficStats.getUidTxBytes(UID);
+                    try {
+                        DataItem di_rx=new DataItem(rx);
+                        DataItem di_tx=new DataItem(tx);
+                        s+=appname.get(packageInfo.packageName)+": \nReceived : "+(df.format(di_rx.convert().getData())+di_rx.getType())+"  Sent : "+(df.format(di_tx.convert().getData())+di_tx.getType())+"\n\n";
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                //Do whatever with the UID
+                //Log.i("Check UID", "UID is: " + UID);
+
+//            Log.d("msg", packageInfo.packageName+": Rec. Bytes : "+rx+" B");
+//            Log.d("msg", packageInfo.packageName+": Sent Bytes : "+tx+" B");
             }
-            //Do whatever with the UID
-            //Log.i("Check UID", "UID is: " + UID);
-            UID = packageInfo.uid;
-            long rx = TrafficStats.getUidRxPackets(UID);
-            long tx = TrafficStats.getUidTxPackets(UID);
-            //Log.v(UserProfile.class.getName(), "Rx : "+rx+" Tx : "+tx);
-
-            Log.v("TAG", packageInfo.packageName+": Rec. Bytes : "+rx+" B");
-            Log.v("TAG", packageInfo.packageName+": Sent Bytes : "+tx+" B");
+            updateAlertDialog(s);
         }
+    });
 
 
+
+
+
+    //Application Usage
+    public void showNotification(View v){
+
+        AlertDialog.Builder builder=new AlertDialog.Builder(this);
+        builder.setTitle("App Data Usage")
+                .setCancelable(false)
+                .setPositiveButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        thread.interrupt();
+                        dialog_dismiss=true;
+                        dialog.dismiss();
+                    }
+                });
+
+        String s="Loading...";
+        builder.setMessage(s);
+        dialog=builder.create();
+        dialog.show();
+        dialog_dismiss=false;
+
+        if(!thread.isInterrupted())
+            thread.run();
+        else
+           thread.start();
+    }
+
+     void updateAlertDialog(String s){
+        Log.d("msg","update call");
+        this.runOnUiThread(new RunnableWithParams(s) {
+            @Override
+            public void run() {
+                dialog.setMessage(str);
+            }
+        });
+        if (!dialog_dismiss)
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    thread.run();
+                }
+            },1000);
 
     }
 
+
+    //On hold
     public void startCountingTotalFromNow(View view){
         startNotificationService.startCountingTotalFromNow();
     }
@@ -150,19 +225,6 @@ public class Dashboard extends AppCompatActivity {
         startNotificationService.insertDataUsage();
 
     }
-
-    //on activity starts
-    @Override
-    protected void onStart() {
-        super.onStart();
-        items=new ArrayList<UsageHistoryItem>();
-        Log.d("msg","starting service");
-        Intent intent=new Intent(this,StartNotificationService.class);
-        startService(intent);
-        bindService(intent,NotificationServiceConnection,BIND_AUTO_CREATE);
-    }
-
-
 
 
     //Getting Connection Object
@@ -181,16 +243,64 @@ public class Dashboard extends AppCompatActivity {
         }
     };
 
+    //on activity starts
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("msg","onSatrt----------------------------------------------->");
+        bindService(service,NotificationServiceConnection,BIND_AUTO_CREATE);
+        flag_service_bound=true;
+
+        items=new ArrayList<UsageHistoryItem>();
+        getAppNameFromPackage();
+        Log.d("msg","starting service");
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        bindService(service,NotificationServiceConnection,BIND_AUTO_CREATE);
+        flag_service_bound=true;
+
+        dialog_dismiss=true;
         updateUI();
-        Log.d("msg","onresume----------------------------------------------->");
+        Log.d("msg","onResume----------------------------------------------->");
     }
+
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d("msg","onDestroy----------------------------------------------->");
+        if(flag_service_bound){
+            flag_service_bound=false;
+            unbindService(NotificationServiceConnection);
+        }
+
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("msg","onPause----------------------------------------------->");
+        if (dialog!=null)
+            dialog.dismiss();
+        if(flag_service_bound){
+            flag_service_bound=false;
+            unbindService(NotificationServiceConnection);
+        }
+        dialog_dismiss=true;
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("msg","onStop----------------------------------------------->");
+        if(flag_service_bound){
+            flag_service_bound=false;
+            unbindService(NotificationServiceConnection);
+        }
+        dialog_dismiss=true;
     }
 
     @Override

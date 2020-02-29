@@ -24,21 +24,22 @@ class DataItem{
     void convertToHighestSuffix(){
         suffix="B/s";
         type="B";
-        if(data>1024){
-            data/=1024;
+        if(data>=1073741824.0) {
+            data /= 1073741824.0;
+            suffix="GB/s";
+            type="GB";
+        }
+        else if(data>=1048576.0){
+            data/=1048576.0;
+            suffix="MB/s";
+            type="MB";
+        }
+        else if(data>=1024.0) {
+            data/=1024.0;
             suffix="KB/s";
             type="KB";
-            if (data>1024){
-                data/=1024;
-                suffix="MB/s";
-                type="MB";
-                if(data>1024){
-                    data/=1024;
-                    suffix="GB/s";
-                    type="GB";
-                }
-            }
         }
+
     }
     DataItem convert(){
         this.convertToHighestSuffix();
